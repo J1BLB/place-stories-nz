@@ -15,6 +15,7 @@ dist/
 
 # Azure Local Emulation
 azurite_db*
+azurite_db_blob.json
 __blobstorage__
 __queuestorage__
 __tablestorage__
