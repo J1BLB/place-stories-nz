@@ -1,0 +1,12 @@
+{
+  "name": "azure-functions-backend",
+  "version": "1.0.0",
+  "license": "MIT",
+  "dependencies": {
+    "@azure/data-tables": "^13.3.2"
+  },
+  "scripts": {
+    "start": "func start",
+    "populate": "node populateSampleData.js"
+  }
+}

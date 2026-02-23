@@ -1,0 +1,39 @@
+# Node
+node_modules/
+npm-debug.log
+pnpm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# SvelteKit build output
+.svelte-kit/
+build/
+dist/
+
+# Azure Static Web Apps
+.swa/
+
+# Azure Local Emulation
+azurite_db*
+__blobstorage__
+__queuestorage__
+__tablestorage__
+azuriteConfig
+nul
+
+
+# Environment variables (never commit these)
+.env
+.env.*
+*.local
+
+# VS Code and AI assistants
+.vscode/
+tmpclaude*
+
+# Logs
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
