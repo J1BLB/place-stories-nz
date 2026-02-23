@@ -1,9 +1,17 @@
 SvelteKit + Azure Functions + MapLibre + Azure Table Storage
 
-This repo is a starter scaffold to build a single-page app that shows geo-located text data stored in Azure Table Storage. It includes:
+This repo is my starter scaffold to build a single-page app that shows geo-located text data stored in Azure Table Storage. It includes:
 
 - An Azure Functions backend (`functions/`) that exposes an HTTP endpoint to list geo posts from a table called `GeoPosts`.
 - A SvelteKit frontend (`app/`) that uses MapLibre to display the posts on a map.
+- Interactive map using MapLibre
+- Geo‑tagged text posts - short stories linked to place, travel blog entries etc.
+- Minimal admin UI for deletes and moderating
+- Azure Functions backend
+- Azure Table Storage for data
+- Local development supported via Azurite
+- No external API keys required
+
 
 Quick steps
 
