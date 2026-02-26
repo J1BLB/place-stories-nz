@@ -12,11 +12,11 @@ const { TableClient } = require("@azure/data-tables");
     await client.createTable();
   } catch(e) {}
 const sample = [
-    { PartitionKey:"posts", RowKey: "1", text:"Beautiful Milford Sound view", latitude:"-44.6719", longitude:"166.7626", author:"Sarah" },
-    { PartitionKey:"posts", RowKey: "2", text:"Enjoying Auckland's waterfront", latitude:"-37.0082", longitude:"174.7850", author:"Mike" },
-    { PartitionKey:"posts", RowKey: "3", text:"Hiking in Tongariro National Park", latitude:"-38.7870", longitude:"175.5470", author:"Emma" },
-    { PartitionKey:"posts", RowKey: "4", text:"Wellington's creative district", latitude:"-41.2865", longitude:"174.7762", author:"James" },
-    { PartitionKey:"posts", RowKey: "5", text:"Queenstown adventure capital", latitude:"-45.3033", longitude:"168.7383", author:"Lisa" }
+    { PartitionKey:"posts", RowKey: "1", text:"Beautiful Milford Sound view", latitude:"-44.671", longitude:"166.762", author:"Sarah" },
+    { PartitionKey:"posts", RowKey: "2", text:"Enjoying Auckland's waterfront", latitude:"-37.008", longitude:"174.785", author:"Mike" },
+    { PartitionKey:"posts", RowKey: "3", text:"Hiking in Tongariro National Park", latitude:"-38.787", longitude:"175.547", author:"Emma" },
+    { PartitionKey:"posts", RowKey: "4", text:"Wellington's creative district", latitude:"-41.286", longitude:"174.776", author:"James" },
+    { PartitionKey:"posts", RowKey: "5", text:"Queenstown adventure capital", latitude:"-45.303", longitude:"168.738", author:"Lisa" }
   ];
   for (const e of sample) {
     try {

@@ -218,7 +218,7 @@
       zoom: 2,
       maxBounds: nzBounds,
       minZoom: 1,
-      maxZoom: 25
+      maxZoom: 9
     });
 
     // Wait for map to load before attaching listeners
@@ -229,17 +229,33 @@
       let touchLongPressTimer;
       let touchStartX, touchStartY;
 
-      // Touch event handlers for long-press on touch devices
+      // Desktop right-click to create post
+      canvas.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        console.log(`Right-click at client coords: ${e.clientX}, ${e.clientY}, canvas relative: ${x}, ${y}`);
+        const lngLat = map.unproject([x, y]);
+        console.log(`Unproject result: lat=${lngLat.lat}, lng=${lngLat.lng}`);
+        openCreateModal(lngLat.lat, lngLat.lng);
+      });
+
+      // Touch long-press to create post
       canvas.addEventListener('touchstart', (e) => {
         const touch = e.touches[0];
         touchStartX = touch.clientX;
         touchStartY = touch.clientY;
 
         touchLongPressTimer = setTimeout(() => {
-          console.log('Touch long press detected at', touch.clientX, touch.clientY);
-          const lngLat = map.unproject([touch.clientX, touch.clientY]);
+          const rect = canvas.getBoundingClientRect();
+          const x = touch.clientX - rect.left;
+          const y = touch.clientY - rect.top;
+          console.log(`Touch long-press at client coords: ${touch.clientX}, ${touch.clientY}, canvas relative: ${x}, ${y}`);
+          const lngLat = map.unproject([x, y]);
+          console.log(`Unproject result: lat=${lngLat.lat}, lng=${lngLat.lng}`);
           openCreateModal(lngLat.lat, lngLat.lng);
-        }, 500); // 500ms long press
+        }, 500);
       });
 
       canvas.addEventListener('touchend', () => {
@@ -247,7 +263,6 @@
       });
 
       canvas.addEventListener('touchmove', (e) => {
-        // If user moves finger significantly, cancel long press
         const touch = e.touches[0];
         const deltaX = Math.abs(touch.clientX - touchStartX);
         const deltaY = Math.abs(touch.clientY - touchStartY);
@@ -258,14 +273,6 @@
 
       canvas.addEventListener('touchcancel', () => {
         clearTimeout(touchLongPressTimer);
-      });
-
-      // Right-click only on non-touch devices
-      canvas.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        console.log('Right click detected');
-        const lngLat = map.unproject([e.clientX, e.clientY]);
-        openCreateModal(lngLat.lat, lngLat.lng);
       });
 
       // Update visible posts when map moves or zooms
@@ -494,7 +501,6 @@ button.report:hover {
   <div class="modal-overlay" on:click={closeCreateModal}>
     <div class="modal" on:click|stopPropagation>
       <h2>Create Post</h2>
-      <p>Location: {createLatitude}, {createLongitude}</p>
       <form on:submit={submitCreatePost}>
         <input placeholder="Post text" bind:value={createText} required />
         <input placeholder="Author (optional)" bind:value={createAuthor} />
