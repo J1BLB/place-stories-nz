@@ -7,7 +7,6 @@ This repo is my starter scaffold to build a single-page app that shows geo-locat
 - Interactive map using MapLibre
 - Geo‑tagged text posts - short stories linked to place, travel blog entries etc.
 - Minimal admin UI for deletes and moderating
-- Azure Functions backend
 - Azure Table Storage for data
 - Local development supported via Azurite
 - No external API keys required
@@ -28,7 +27,7 @@ cd functions
 npm install
 # set TABLE_CONNECTION_STRING in local.settings.json or environment
 npm run populate   # optional: populate sample data
-npm start          # runs function locally on http://localhost:7071
+func start          # runs function locally on http://localhost:7071
 ```
 
 3. Frontend setup

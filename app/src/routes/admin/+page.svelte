@@ -11,6 +11,28 @@
   let error = '';
   let success = '';
 
+  async function parseArrayResponse(response) {
+    if (!response.ok) {
+      return [];
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    const bodyText = await response.text();
+
+    if (!bodyText.trim()) {
+      return [];
+    }
+
+    try {
+      const parsed = contentType.includes('application/json')
+        ? JSON.parse(bodyText)
+        : JSON.parse(bodyText);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
   async function login() {
     if (!adminPassword) {
       error = 'Please enter admin password';
@@ -42,20 +64,22 @@
 
   async function loadData() {
     try {
+      error = '';
       const [flaggedRes, reportsRes, allPostsRes] = await Promise.all([
         fetch(`/api/getFlaggedPosts?adminPassword=${encodeURIComponent(adminPassword)}`),
         fetch('/api/getUserReports'),
         fetch('/api/getAllPosts')
       ]);
 
-      if (flaggedRes.ok) {
-        flaggedPosts = await flaggedRes.json();
-      }
-      if (reportsRes.ok) {
-        reports = await reportsRes.json();
-      }
-      if (allPostsRes.ok) {
-        allPosts = await allPostsRes.json();
+      flaggedPosts = await parseArrayResponse(flaggedRes);
+      reports = await parseArrayResponse(reportsRes);
+      allPosts = (await parseArrayResponse(allPostsRes)).map(post => ({
+        ...post,
+        id: String(post.id)
+      }));
+
+      if (!flaggedRes.ok || !reportsRes.ok || !allPostsRes.ok) {
+        error = 'Some admin data failed to load.';
       }
     } catch (err) {
       error = 'Failed to load data: ' + err.message;

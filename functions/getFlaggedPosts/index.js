@@ -9,7 +9,8 @@ module.exports = async function (context, req) {
     const provided = (req.query && req.query.adminPassword) || null;
 
     if (provided !== adminPassword) {
-      return { status: 401, body: "Unauthorized" };
+      context.res = { status: 401, body: "Unauthorized" };
+      return;
     }
 
     const conn = process.env.TABLE_CONNECTION_STRING || process.env.AzureWebJobsStorage;
@@ -25,7 +26,11 @@ module.exports = async function (context, req) {
         const client = TableClient.fromConnectionString(conn, tableName, { allowInsecureConnection: true });
         await client.createTable().catch(() => {}); // Ensure table exists
         for await (const entity of client.listEntities()) {
-          postsMap[entity.RowKey] = {
+          const rowKey = String(entity.rowKey ?? entity.RowKey ?? "");
+          if (!rowKey) {
+            continue;
+          }
+          postsMap[rowKey] = {
             text: entity.text || "",
             author: entity.author || "Anonymous",
             latitude: entity.latitude ? parseFloat(entity.latitude) : null,
@@ -49,18 +54,20 @@ module.exports = async function (context, req) {
     // Enrich flagged posts with details
     const enrichedFlagged = flaggedList.map(f => ({
       ...f,
-      post: postsMap[f.postId] || null
+      post: postsMap[String(f.postId)] || null
     }));
 
-    return {
+    context.res = {
       status: 200,
       body: enrichedFlagged
     };
+    return;
   } catch (err) {
     context.log.error("Error getting flagged posts:", err);
-    return {
+    context.res = {
       status: 500,
       body: "Internal server error: " + (err && err.message ? err.message : "Unknown error")
     };
+    return;
   }
 };

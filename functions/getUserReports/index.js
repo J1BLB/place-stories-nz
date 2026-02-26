@@ -18,7 +18,11 @@ module.exports = async function (context, req) {
         const client = TableClient.fromConnectionString(conn, tableName, { allowInsecureConnection: true });
         await client.createTable().catch(() => {}); // Ensure table exists
         for await (const entity of client.listEntities()) {
-          postsMap[entity.RowKey] = {
+          const rowKey = String(entity.rowKey ?? entity.RowKey ?? "");
+          if (!rowKey) {
+            continue;
+          }
+          postsMap[rowKey] = {
             text: entity.text || "",
             author: entity.author || "Anonymous",
             latitude: entity.latitude ? parseFloat(entity.latitude) : null,
@@ -42,7 +46,7 @@ module.exports = async function (context, req) {
     // Enrich reports with post details
     const enrichedReports = reports.map(r => ({
       ...r,
-      post: postsMap[r.postId] || null
+      post: postsMap[String(r.postId)] || null
     }));
 
     return {

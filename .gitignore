@@ -14,7 +14,8 @@ dist/
 .swa/
 
 # Azure Local Emulation
-*azurite_db*
+azurite_db*
+__azurite_db*.json
 __blobstorage__
 __queuestorage__
 __tablestorage__
