@@ -444,7 +444,7 @@
                 <strong>Flagged:</strong> {new Date(post.flaggedAt).toLocaleString()}
               </div>
               <div class="post-reason">
-                <strong>Reason:</strong> {post.reason}
+                <strong>Moderation reason:</strong> {post.moderationReason || post.reason || 'Pending moderation'}
               </div>
               <div class="post-actions">
                 <button class="restore-btn" on:click={() => restoreFlaggedPost(post.postId)}>
