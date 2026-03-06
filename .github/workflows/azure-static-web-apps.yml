@@ -28,6 +28,41 @@ jobs:
           fi
           echo "AZURE_STATIC_WEB_APPS_API_TOKEN is present"
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build SvelteKit app
+        run: |
+          cd app
+          npm ci
+          npm run build
+
+      - name: Merge custom functions into SSR server output
+        run: |
+          SERVER="app/build/server"
+          # Copy each custom function folder into the adapter's server output
+          for dir in functions/*/; do
+            [ -d "$dir" ] && cp -r "$dir" "$SERVER/"
+          done
+          # Copy shared support files used by custom functions
+          for f in utilities.js inMemoryStore.js adminAuth.js spamKeywords.json rateLimits.json flaggedPosts.json reports.json; do
+            [ -f "functions/$f" ] && cp "functions/$f" "$SERVER/" || true
+          done
+          # Merge @azure/data-tables and other deps from custom functions into server package.json
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+            const custom = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+            pkg.dependencies = { ...pkg.dependencies, ...(custom.dependencies || {}) };
+            fs.writeFileSync(process.argv[1], JSON.stringify(pkg, null, 2));
+          " "$SERVER/package.json" "functions/package.json"
+          # Install merged dependencies (generates updated package-lock.json for Oryx)
+          (cd "$SERVER" && npm install --production)
+          # Copy staticwebapp.config.json into static output so Azure picks up routing rules
+          cp app/build/staticwebapp.config.json app/build/static/
+
       - name: Build and Deploy Static Web App
         uses: Azure/static-web-apps-deploy@v1
         with:
@@ -35,8 +70,9 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: upload
           app_location: "app"
-          api_location: "functions"
-          output_location: ".svelte-kit/output"
+          api_location: "app/build/server"
+          output_location: "build/static"
+          skip_app_build: true
 
   close_pull_request:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
