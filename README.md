@@ -47,3 +47,24 @@ API endpoints
 
 - `GET /api/getPosts` — lists all posts from the `GeoPosts` table.
 - `POST /api/addPost` — create a new post. JSON payload: `{ "text": "...", "latitude": 47.6, "longitude": -122.3 }`.
+
+Deploy to Azure Static Web Apps
+
+This repo is set up to deploy from GitHub Actions using:
+
+- `app_location: app`
+- `api_location: functions` (not `api`)
+- `output_location: build`
+
+One-time setup:
+
+1. In Azure Portal, create or open your Static Web App.
+2. Open `Deployment token` and copy the token value.
+3. In GitHub, go to `Settings > Secrets and variables > Actions` and add:
+	- Secret name: `AZURE_STATIC_WEB_APPS_API_TOKEN`
+	- Secret value: the deployment token from Azure
+4. Commit and push this repository to `main`.
+
+GitHub Actions workflow file:
+
+- `.github/workflows/azure-static-web-apps.yml`
