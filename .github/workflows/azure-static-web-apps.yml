@@ -36,7 +36,7 @@ jobs:
           action: upload
           app_location: "app"
           api_location: "functions"
-          output_location: "build/static"
+          output_location: ".svelte-kit/output"
 
   close_pull_request:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
