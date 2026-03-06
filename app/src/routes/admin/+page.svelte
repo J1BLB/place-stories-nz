@@ -1,6 +1,4 @@
 <script>
-  import { onMount } from 'svelte';
-
   let adminPassword = '';
   let isAuthenticated = false;
   let flaggedPosts = [];
@@ -33,6 +31,15 @@
     }
   }
 
+  function adminRequestInit(method = 'GET') {
+    return {
+      method,
+      headers: {
+        'x-admin-password': adminPassword
+      }
+    };
+  }
+
   async function login() {
     if (!adminPassword) {
       error = 'Please enter admin password';
@@ -42,7 +49,7 @@
     try {
       loading = true;
       error = '';
-      const res = await fetch(`/api/getFlaggedPosts?adminPassword=${encodeURIComponent(adminPassword)}`);
+      const res = await fetch('/api/getFlaggedPosts', adminRequestInit());
 
       if (res.status === 401) {
         error = 'Invalid password';
@@ -66,8 +73,8 @@
     try {
       error = '';
       const [flaggedRes, reportsRes, allPostsRes] = await Promise.all([
-        fetch(`/api/getFlaggedPosts?adminPassword=${encodeURIComponent(adminPassword)}`),
-        fetch('/api/getUserReports'),
+        fetch('/api/getFlaggedPosts', adminRequestInit()),
+        fetch('/api/getUserReports', adminRequestInit()),
         fetch('/api/getAllPosts')
       ]);
 
@@ -90,9 +97,7 @@
     if (!confirm('Delete this post permanently?')) return;
 
     try {
-      const res = await fetch(`/api/deleteFlaggedPost/${postId}?adminPassword=${encodeURIComponent(adminPassword)}`, {
-        method: 'DELETE'
-      });
+      const res = await fetch(`/api/deleteFlaggedPost/${postId}`, adminRequestInit('DELETE'));
 
       if (res.ok) {
         success = 'Post deleted';
@@ -108,9 +113,7 @@
 
   async function restoreFlaggedPost(postId) {
     try {
-      const res = await fetch(`/api/restoreFlaggedPost/${postId}?adminPassword=${encodeURIComponent(adminPassword)}`, {
-        method: 'PUT'
-      });
+      const res = await fetch(`/api/restoreFlaggedPost/${postId}`, adminRequestInit('PUT'));
 
       if (res.ok) {
         success = 'Post restored and made visible';
@@ -126,9 +129,7 @@
 
   async function deleteReport(reportId) {
     try {
-      const res = await fetch(`/api/deleteReport/${reportId}?adminPassword=${encodeURIComponent(adminPassword)}`, {
-        method: 'DELETE'
-      });
+      const res = await fetch(`/api/deleteReport/${reportId}`, adminRequestInit('DELETE'));
 
       if (res.ok) {
         success = 'Report deleted';
@@ -150,14 +151,6 @@
     allPosts = [];
   }
 
-  onMount(() => {
-    // Check if already authenticated (from localStorage)
-    const savedPassword = localStorage.getItem('adminPassword');
-    if (savedPassword) {
-      adminPassword = savedPassword;
-      login();
-    }
-  });
 </script>
 
 <style global>

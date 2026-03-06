@@ -41,6 +41,7 @@ npm run dev        # runs SvelteKit dev server (proxies /api to localhost:7071)
 Notes
 
 - Configure `TABLE_CONNECTION_STRING` (and optionally `TABLE_NAME`) in `functions/local.settings.json` or environment.
+- Configure `ADMIN_PASSWORD` in Functions settings (local and Azure) for `/admin` moderation endpoints.
 - The frontend proxies `/api` to the local function runtime so `fetch('/api/getPosts')` works during dev.
 
 API endpoints

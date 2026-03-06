@@ -2,14 +2,13 @@ const { TableClient } = require("@azure/data-tables");
 const { loadJSON } = require("../utilities");
 const path = require("path");
 const memory = require("../inMemoryStore");
+const { authorizeAdmin } = require("../adminAuth");
 
 module.exports = async function (context, req) {
   try {
-    const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
-    const provided = (req.query && req.query.adminPassword) || null;
-
-    if (provided !== adminPassword) {
-      context.res = { status: 401, body: "Unauthorized" };
+    const auth = authorizeAdmin(req);
+    if (!auth.ok) {
+      context.res = { status: auth.status, body: auth.body };
       return;
     }
 

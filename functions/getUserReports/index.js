@@ -2,9 +2,15 @@ const { TableClient } = require("@azure/data-tables");
 const { loadJSON } = require("../utilities");
 const path = require("path");
 const memory = require("../inMemoryStore");
+const { authorizeAdmin } = require("../adminAuth");
 
 module.exports = async function (context, req) {
   try {
+    const auth = authorizeAdmin(req);
+    if (!auth.ok) {
+      return { status: auth.status, body: auth.body };
+    }
+
     const conn = process.env.TABLE_CONNECTION_STRING || process.env.AzureWebJobsStorage;
     const tableName = process.env.TABLE_NAME || "GeoPosts";
 

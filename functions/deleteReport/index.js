@@ -1,13 +1,12 @@
 const { loadJSON, saveJSON } = require("../utilities");
 const path = require("path");
+const { authorizeAdmin } = require("../adminAuth");
 
 module.exports = async function (context, req) {
   try {
-    const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
-    const provided = (req.query && req.query.adminPassword) || null;
-
-    if (provided !== adminPassword) {
-      return { status: 401, body: "Unauthorized" };
+    const auth = authorizeAdmin(req);
+    if (!auth.ok) {
+      return { status: auth.status, body: auth.body };
     }
 
     const reportId = req.params.reportId;
