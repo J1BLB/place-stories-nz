@@ -22,6 +22,8 @@
   let createLatitude = '';
   let createLongitude = '';
 
+  
+  let showAboutModal = false;
   let showLegalModal = false;
   let showHamburgerMenu = false;
   let resizeHandler;
@@ -89,6 +91,11 @@
     createAuthor = '';
     createLatitude = '';
     createLongitude = '';
+  }
+
+  function openAboutModalFromMenu() {
+    showHamburgerMenu = false;
+    showAboutModal = true;
   }
 
   function openLegalModalFromMenu() {
@@ -596,13 +603,22 @@ button.report:hover {
         ☰
       </button>
 
-      {#if showHamburgerMenu}
-        <div class="menu-panel">
-          <button class="menu-item" on:click={openLegalModalFromMenu}>
-            Terms of Use & Privacy Policy
-          </button>
-        </div>
-      {/if}
+  {#if showHamburgerMenu}
+    <div class="menu-panel">
+
+      <!-- New About button -->
+      <button class="menu-item" on:click={openAboutModalFromMenu}>
+        About SeenHere
+      </button>
+
+      <!-- Existing Terms button -->
+      <button class="menu-item" on:click={openLegalModalFromMenu}>
+        Terms of Use & Privacy Policy
+      </button>
+
+    </div>
+  {/if}
+
     </div>
   </div>
 
@@ -674,6 +690,38 @@ button.report:hover {
         </div>
       </form>
     </div>
+  </div>
+{/if}
+
+{#if showAboutModal}
+  <div class="modal-backdrop" on:click={() => showAboutModal = false}></div>
+
+  <div class="modal">
+    <button class="close-btn" on:click={() => showAboutModal = false}>×</button>
+
+    <h2>About Seen Here</h2>
+
+    <p>
+      <strong>Seen Here</strong> is an interactive map created by a survivor of gendered
+      violence, designed to give other survivors a place to feel seen and heard. It invites
+      survivors to anonymously pin a location on the map of Aotearoa New Zealand that
+      represents their voice.
+    </p>
+
+    <p>
+      Gendered violence in New Zealand remains among the highest in the developed world.
+      While statistics have prompted a twenty‑five‑year government plan to address the
+      issue, numbers alone cannot capture the lived experience of survivors — who are too
+      often dehumanised, silenced, or retraumatised by the systems meant to support them.
+    </p>
+
+    <p>
+      Abuse isolates. The simple act of placing an anonymous pin on a map is a small
+      gesture with deep significance. It breaks isolation, restores humanity to the
+      statistics, and reminds survivors that they are more than numbers.
+    </p>
+
+    <p><strong>Survivors are more than statistics. SeenHere.org.nz</strong></p>
   </div>
 {/if}
 
