@@ -213,7 +213,7 @@ app.http('getUserReports', {
   }
 });
 
-// ─── deleteFlaggedPost — admin: marks isDeleted=true on the GeoPosts entity ───
+// ─── deleteFlaggedPost — admin: hard-deletes the entity from GeoPosts ────────
 app.http('deleteFlaggedPost', {
   methods: ['DELETE'],
   authLevel: 'anonymous',
@@ -232,15 +232,27 @@ app.http('deleteFlaggedPost', {
 
     try {
       const client = postsClient(conn);
-      await client.updateEntity(
-        { partitionKey: 'posts', rowKey: postId, isDeleted: true },
-        'Merge'
-      );
-    } catch (e) {
-      context.warn(`Failed to mark post ${postId} as deleted: ${e && e.message}`);
-    }
 
-    return { status: 200, jsonBody: { success: true, message: `Deleted post ${postId}` } };
+      // Find the entity first so we have the correct PartitionKey
+      let partitionKey = 'posts';
+      try {
+        for await (const entity of client.listEntities({
+          queryOptions: { filter: `RowKey eq '${postId}'` }
+        })) {
+          partitionKey = entity.partitionKey;
+          break;
+        }
+      } catch (e) {
+        context.warn('Could not look up partitionKey, defaulting to "posts"', e && e.message);
+      }
+
+      await client.deleteEntity(partitionKey, postId);
+      context.log(`Deleted post ${postId} from table`);
+      return { status: 200, jsonBody: { success: true, message: `Deleted post ${postId}` } };
+    } catch (e) {
+      context.error(`Failed to delete post ${postId}: ${e && e.message}`);
+      return { status: 500, body: `Failed to delete post: ${e && e.message}` };
+    }
   }
 });
 
@@ -262,8 +274,22 @@ app.http('restoreFlaggedPost', {
 
     try {
       const client = postsClient(conn);
+
+      // Find the correct PartitionKey for this rowKey
+      let partitionKey = 'posts';
+      try {
+        for await (const entity of client.listEntities({
+          queryOptions: { filter: `RowKey eq '${postId}'` }
+        })) {
+          partitionKey = entity.partitionKey;
+          break;
+        }
+      } catch (e) {
+        context.warn('Could not look up partitionKey, defaulting to "posts"', e && e.message);
+      }
+
       await client.updateEntity(
-        { partitionKey: 'posts', rowKey: postId, isFlagged: false },
+        { partitionKey, rowKey: postId, isFlagged: false },
         'Merge'
       );
       return { status: 200, jsonBody: { success: true } };
