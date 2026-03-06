@@ -38,3 +38,4 @@ tmpclaude*
 # OS junk
 .DS_Store
 Thumbs.db
+functions/flaggedPosts.json
