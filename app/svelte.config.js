@@ -1,4 +1,4 @@
-import adapter from '@sveltejs/adapter-static';
+import adapter from 'svelte-adapter-azure-swa';
 import preprocess from 'svelte-preprocess';
 
 export default {
