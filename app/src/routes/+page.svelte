@@ -4,14 +4,14 @@
 
   let map;
   let posts = [];
-  let markers = [];
-  let visiblePosts = [];
+  let activePopup;
 
   // Session state tracking
   let hasOpenedAddPostModal = false;
   let hasOpenedReportModal = false;
 
   let errorMessage = '';
+  let successMessage = '';
   let showReportModal = false;
   let reportingPostId = '';
   let reportReason = '';
@@ -23,51 +23,23 @@
   let createLongitude = '';
 
   let showLegalModal = false;
+  let showHamburgerMenu = false;
+  let resizeHandler;
+  let successMessageTimer;
 
-  function isPointInBounds(point, bounds) {
-    const [minLng, minLat, maxLng, maxLat] = bounds;
-    return point.longitude >= minLng && point.longitude <= maxLng &&
-           point.latitude >= minLat && point.latitude <= maxLat;
-  }
-
-  function updateVisiblePosts() {
-    if (!map || !posts || posts.length === 0) {
-      console.log('updateVisiblePosts: map or posts not ready', { mapExists: !!map, postsLength: posts?.length });
-      visiblePosts = [];
-      return;
-    }
-    try {
-      const bounds = map.getBounds();
-      const boundsArray = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
-      console.log('Current bounds:', boundsArray);
-
-      const filtered = posts.filter(post => {
-        const hasCoords = post.longitude != null && post.latitude != null;
-        const inBounds = hasCoords && isPointInBounds(post, boundsArray);
-        console.log(`Post ${post.id}: coords=${hasCoords}, inBounds=${inBounds}, lat=${post.latitude}, lng=${post.longitude}`);
-        return inBounds;
-      });
-
-      console.log(`Filtered visible posts: ${filtered.length} of ${posts.length}`);
-      // Force Svelte to detect the change
-      visiblePosts = [...filtered];
-    } catch (e) {
-      console.error('Error updating visible posts:', e);
-      visiblePosts = [];
-    }
-  }
-
-  // Reactive: update visible posts when posts change
-  $: if (map && posts && posts.length > 0) {
-    console.log('Reactive statement fired - updating visible posts');
-    updateVisiblePosts();
-  }
+  const POST_VIEW_ZOOM = 10.5;
+  const POST_CREATE_ZOOM = 8.5;
+  const MAP_MAX_ZOOM = 10.5;
+  const POSTS_SOURCE_ID = 'posts-source';
+  const CLUSTER_LAYER_ID = 'posts-clusters';
+  const CLUSTER_COUNT_LAYER_ID = 'posts-cluster-count';
+  const UNCLUSTERED_LAYER_ID = 'posts-unclustered';
 
   function zoomToPost(post) {
     if (post && post.longitude != null && post.latitude != null && map) {
       map.flyTo({
         center: [post.longitude, post.latitude],
-        zoom: 12,
+        zoom: POST_VIEW_ZOOM,
         duration: 1500
       });
     }
@@ -95,12 +67,20 @@
       alert('You can only add one post per browser session');
       return;
     }
+
+    if (map) {
+      map.flyTo({
+        center: [lng, lat],
+        zoom: POST_CREATE_ZOOM,
+        duration: 900
+      });
+    }
+
     createText = '';
     createAuthor = '';
     createLatitude = lat.toFixed(4);
     createLongitude = lng.toFixed(4);
     showCreateModal = true;
-    hasOpenedAddPostModal = true;
   }
 
   function closeCreateModal() {
@@ -109,6 +89,165 @@
     createAuthor = '';
     createLatitude = '';
     createLongitude = '';
+  }
+
+  function openLegalModalFromMenu() {
+    showHamburgerMenu = false;
+    showLegalModal = true;
+  }
+
+  function showSuccessMessage(message) {
+    successMessage = message;
+
+    if (successMessageTimer) {
+      clearTimeout(successMessageTimer);
+    }
+
+    successMessageTimer = setTimeout(() => {
+      successMessage = '';
+    }, 4500);
+  }
+
+  function buildPostsGeoJson() {
+    return {
+      type: 'FeatureCollection',
+      features: posts
+        .filter((post) => post.longitude != null && post.latitude != null)
+        .map((post) => ({
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [post.longitude, post.latitude]
+          },
+          properties: {
+            id: String(post.id),
+            text: post.text ?? '',
+            author: post.author ?? ''
+          }
+        }))
+    };
+  }
+
+  function addPostLayers() {
+    if (!map || map.getSource(POSTS_SOURCE_ID)) return;
+
+    map.addSource(POSTS_SOURCE_ID, {
+      type: 'geojson',
+      data: buildPostsGeoJson(),
+      cluster: true,
+      clusterMaxZoom: 7,
+      clusterRadius: 44
+    });
+
+    map.addLayer({
+      id: CLUSTER_LAYER_ID,
+      type: 'circle',
+      source: POSTS_SOURCE_ID,
+      filter: ['has', 'point_count'],
+      paint: {
+        'circle-color': '#8b2f3c',
+        'circle-stroke-color': '#f7f4f2',
+        'circle-stroke-width': 2,
+        'circle-radius': [
+          'step',
+          ['get', 'point_count'],
+          14,
+          10,
+          18,
+          30,
+          22
+        ]
+      }
+    });
+
+    map.addLayer({
+      id: CLUSTER_COUNT_LAYER_ID,
+      type: 'symbol',
+      source: POSTS_SOURCE_ID,
+      filter: ['has', 'point_count'],
+      layout: {
+        'text-field': '{point_count_abbreviated}',
+        'text-size': 12
+      },
+      paint: {
+        'text-color': '#ffffff'
+      }
+    });
+
+    map.addLayer({
+      id: UNCLUSTERED_LAYER_ID,
+      type: 'circle',
+      source: POSTS_SOURCE_ID,
+      filter: ['!', ['has', 'point_count']],
+      paint: {
+        'circle-color': '#8b2f3c',
+        'circle-radius': 7,
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': 2
+      }
+    });
+
+    map.on('click', CLUSTER_LAYER_ID, (e) => {
+      const features = map.queryRenderedFeatures(e.point, { layers: [CLUSTER_LAYER_ID] });
+      const clusterFeature = features?.[0];
+      if (!clusterFeature) return;
+
+      const source = map.getSource(POSTS_SOURCE_ID);
+      const clusterId = clusterFeature.properties?.cluster_id;
+      if (!source || clusterId == null) return;
+
+      source.getClusterExpansionZoom(clusterId, (err, zoom) => {
+        if (err) return;
+        map.easeTo({
+          center: clusterFeature.geometry.coordinates,
+          zoom: Math.min(zoom, MAP_MAX_ZOOM),
+          duration: 700
+        });
+      });
+    });
+
+    map.on('click', UNCLUSTERED_LAYER_ID, (e) => {
+      const feature = e.features?.[0];
+      if (!feature) return;
+
+      const [lng, lat] = feature.geometry.coordinates;
+      const text = feature.properties?.text || '';
+      const author = feature.properties?.author;
+      const popupText = `${text}${author ? ` — ${author}` : ''}`;
+
+      zoomToPost({ longitude: lng, latitude: lat });
+
+      if (activePopup) {
+        activePopup.remove();
+      }
+
+      activePopup = new maplibregl.Popup({ offset: 12 })
+        .setLngLat([lng, lat])
+        .setText(popupText)
+        .addTo(map);
+
+      activePopup.setMaxWidth('960px');
+    });
+
+    map.on('mouseenter', CLUSTER_LAYER_ID, () => {
+      map.getCanvas().style.cursor = 'pointer';
+    });
+    map.on('mouseleave', CLUSTER_LAYER_ID, () => {
+      map.getCanvas().style.cursor = '';
+    });
+    map.on('mouseenter', UNCLUSTERED_LAYER_ID, () => {
+      map.getCanvas().style.cursor = 'pointer';
+    });
+    map.on('mouseleave', UNCLUSTERED_LAYER_ID, () => {
+      map.getCanvas().style.cursor = '';
+    });
+  }
+
+  function refreshPostsOnMap() {
+    if (!map) return;
+    const source = map.getSource(POSTS_SOURCE_ID);
+    if (!source) return;
+    source.setData(buildPostsGeoJson());
   }
 
   async function submitReport() {
@@ -138,6 +277,7 @@
   async function submitCreatePost(e) {
     e.preventDefault();
     errorMessage = '';
+    successMessage = '';
 
     const payload = { text: createText, author: createAuthor, latitude: createLatitude ? parseFloat(createLatitude) : null, longitude: createLongitude ? parseFloat(createLongitude) : null };
     const res = await fetch('/api/addPost', {
@@ -149,11 +289,12 @@
     if (res.status === 429) {
       errorMessage = 'Rate limit: You can only post once per day';
     } else if (res.ok) {
+      hasOpenedAddPostModal = true;
       const result = await res.json();
       if (result.flagged) {
-        errorMessage = 'Your post was flagged for spam review and will not appear publicly.';
+        showSuccessMessage('Thank you — your post will appear on the map soon.');
       } else {
-        errorMessage = '';
+        showSuccessMessage('Thank you — your post was submitted successfully.');
       }
       closeCreateModal();
       await fetchPosts();
@@ -184,46 +325,31 @@
       errorMessage = 'Failed to load posts';
     }
 
-    // clear markers
-    for (const m of markers) m.remove();
-    markers = [];
-
-    for (const p of posts) {
-      if (p.longitude != null && p.latitude != null) {
-        const el = document.createElement('div');
-        el.className = 'marker';
-        const popupText = `${p.text}${p.author ? ' — ' + p.author : ''}`;
-        const marker = new maplibregl.Marker(el)
-          .setLngLat([p.longitude, p.latitude])
-          .setPopup(new maplibregl.Popup().setText(popupText))
-          .addTo(map);
-        markers.push(marker);
-      }
-    }
-
-    // Don't zoom to first post - user wants to stay in center
-    // Just update the visible posts list
-    console.log('Calling updateVisiblePosts from fetchPosts');
-    setTimeout(updateVisiblePosts, 50);
+    refreshPostsOnMap();
   }
 
   onMount(async () => {
     // New Zealand bounding box: [west, south, east, north]
-    const nzBounds = [[166.4, -47.3], [178.6, -34.0]];
+    const nzBounds = [[160.5, -49.5], [184.5, -31.0]];
 
     map = new maplibregl.Map({
       container: 'map',
       style: 'https://tiles.stadiamaps.com/styles/alidade_smooth.json',
       center: [172.5, -40.9],  // Center of New Zealand
-      zoom: 2,
+      zoom: 1.6,
       maxBounds: nzBounds,
       minZoom: 1,
-      maxZoom: 9
+      maxZoom: MAP_MAX_ZOOM,
+      refreshExpiredTiles: true
     });
 
     // Wait for map to load before attaching listeners
     map.on('load', () => {
       console.log('Map loaded, attaching event listeners');
+      map.resize();
+      map.triggerRepaint();
+      addPostLayers();
+      refreshPostsOnMap();
 
       const canvas = map.getCanvas();
       let touchLongPressTimer;
@@ -275,23 +401,51 @@
         clearTimeout(touchLongPressTimer);
       });
 
-      // Update visible posts when map moves or zooms
-      map.on('moveend', () => {
-        console.log('Map moveend - updating visible posts');
-        updateVisiblePosts();
-      });
-
       map.on('zoomend', () => {
-        console.log('Map zoomend - updating visible posts');
-        updateVisiblePosts();
+        map.resize();
+        map.triggerRepaint();
       });
 
-      // Call immediately after load
-      console.log('Calling initial updateVisiblePosts');
-      updateVisiblePosts();
     });
 
+    resizeHandler = () => {
+      if (!map) return;
+      map.resize();
+      map.triggerRepaint();
+    };
+
+    const keydownHandler = (e) => {
+      if (e.key !== 'Escape') return;
+
+      if (showCreateModal) {
+        closeCreateModal();
+        return;
+      }
+
+      if (showReportModal) {
+        closeReportModal();
+        return;
+      }
+
+      if (showLegalModal) {
+        showLegalModal = false;
+      }
+    };
+
+    window.addEventListener('resize', resizeHandler);
+    window.addEventListener('keydown', keydownHandler);
+
     await fetchPosts();
+
+    return () => {
+      if (resizeHandler) {
+        window.removeEventListener('resize', resizeHandler);
+      }
+      window.removeEventListener('keydown', keydownHandler);
+      if (map) {
+        map.remove();
+      }
+    };
   });
 </script>
 
@@ -301,13 +455,61 @@
   }
 
 
-  :global(.marker) {   background: #8b2f3c;
- width: 12px; height: 12px; border-radius: 50%; cursor: pointer; }
-  #map { width: 100%; height: 60vh; }
+  #map { width: 100%; height: 78vh; min-height: 520px; }
   main {
     background: #f7f4f2;
     padding: 1rem;
   }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  position: relative;
+}
+
+.topbar h1 {
+  margin: 0;
+}
+
+.menu-wrap {
+  position: relative;
+}
+
+.menu-btn {
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0.35rem 0.55rem;
+}
+
+.menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.4rem);
+  background: #fff;
+  border: 1px solid #d7d7d7;
+  border-radius: 8px;
+  min-width: 210px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  padding: 0.35rem;
+  z-index: 20;
+}
+
+.menu-item {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 0.55rem 0.6rem;
+}
+
+.menu-item:hover {
+  background: #f2f2f2;
+}
 
 button {
   padding: 0.45rem 0.9rem;
@@ -366,126 +568,66 @@ button.report:hover {
 }
 
 
-.posts-list-container li {
-  background: #fff;
-  border: 1px solid #eee;
-  border-radius: 8px;
-  padding: 1rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-}
-
-
-.posts-list-container ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.posts-list-container li {
-  padding: 0.75rem;
-  margin-bottom: 0.5rem;
-  background: #fafafa;
-  border-radius: 6px;
-  border: 1px solid #eee;
-  transition: background 0.15s ease;
-  gap: 0.35rem; /* nice breathing room */
-}
-
-
-
-
-.posts-list-container li:hover {
-  background: #f2f2f2;
-}
-.post-text {
-  font-size: 1rem;
-  color: #333;
-  line-height: 1.6;
-}
-
   .error { color: #d32f2f; padding: 0.5rem; background: #ffebee; border-radius: 4px; margin-bottom: 0.5rem; }
   .success { color: #388e3c; padding: 0.5rem; background: #e8f5e9; border-radius: 4px; margin-bottom: 0.5rem; }
   .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
-  .modal { background: #faf7f5; padding: 1.5rem; border-radius: 6px; max-width: 500px; width: 90%; }
+  .modal { background: #faf7f5; padding: 1.5rem; border-radius: 6px; width: min(95vw, 1020px); max-width: none; }
   .modal h2 { margin-top: 0; }
   .modal textarea { width: 100%; min-height: 100px; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 1rem; box-sizing: border-box; }
   .modal input { width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 1rem; box-sizing: border-box; }
   .modal-buttons { display: flex; gap: 0.5rem; }
   .modal-buttons button { flex: 1; }
-.clamped {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  color: #444;
-  line-height: 1.4;
-}
-
-  .toggle {
-    margin-left: 6px;
-    font-size: 0.8rem;
-    background: none;
-    border: none;
-    color: #0077ff;
-    cursor: pointer;
-  }
-
+  :global(.maplibregl-popup) { max-width: min(95vw, 1020px); }
+  :global(.maplibregl-popup-content) { width: min(92vw, 980px); max-width: min(92vw, 980px); line-height: 1.45; white-space: normal; word-break: break-word; }
 </style>
 
 <main>
 
+  <div class="topbar">
+    <h1>Seen Here</h1>
 
-  <h1>Geo Posts</h1>
+    <div class="menu-wrap">
+      <button
+        class="menu-btn"
+        on:click={() => showHamburgerMenu = !showHamburgerMenu}
+        aria-label="Open menu"
+        aria-expanded={showHamburgerMenu}
+      >
+        ☰
+      </button>
+
+      {#if showHamburgerMenu}
+        <div class="menu-panel">
+          <button class="menu-item" on:click={openLegalModalFromMenu}>
+            Terms of Use & Privacy Policy
+          </button>
+        </div>
+      {/if}
+    </div>
+  </div>
+
 
   {#if errorMessage}
     <div class="error">{errorMessage}</div>
   {/if}
 
+  {#if successMessage}
+    <div class="success">{successMessage}</div>
+  {/if}
+
   <div id="map"></div>
-
-  <div class="posts-list-container">
-    <div class="posts-list-header">Posts in View ({visiblePosts.length})</div>
-<ul>
-  {#each visiblePosts as post (post.id)}
-    <li on:click={() => zoomToPost(post)}>
-
-      <span 
-        class="post-text"
-        class:clamped={!post.expanded}
-      >
-        {post.text}{post.author ? ` — ${post.author}` : ''}
-      </span>
-
-      {#if post.text.length > 180}
-        <button 
-          class="toggle"
-          on:click|stopPropagation={() => post.expanded = !post.expanded}
-        >
-          {post.expanded ? "Show less" : "Show more"}
-        </button>
-      {/if}
-
-      <button 
-        class="report"
-        on:click|stopPropagation={() => openReportModal(post.id)}
-      >
-        Report
-      </button>
-
-    </li>
-  {/each}
-</ul>
-  </div>
-    <div class="legal-link">
-  <button on:click={() => showLegalModal = true}>
-    Terms of Use & Privacy Policy
-  </button>
-  </div>
 </main>
 
 {#if showReportModal}
-  <div class="modal-overlay" on:click={closeReportModal}>
-    <div class="modal" on:click|stopPropagation>
+  <div
+    class="modal-overlay"
+    role="button"
+    tabindex="0"
+    aria-label="Close report dialog"
+    on:click|self={closeReportModal}
+    on:keydown|self={(e) => (e.key === 'Enter' || e.key === ' ') && closeReportModal()}
+  >
+    <div class="modal">
       <h2>Report Post</h2>
       <p>Please explain why you're reporting this post:</p>
       <textarea bind:value={reportReason} placeholder="Enter reason for report..."></textarea>
@@ -498,8 +640,15 @@ button.report:hover {
 {/if}
 
 {#if showCreateModal}
-  <div class="modal-overlay" on:click={closeCreateModal}>
-    <div class="modal" on:click|stopPropagation>
+  <div
+    class="modal-overlay"
+    role="button"
+    tabindex="0"
+    aria-label="Close create post dialog"
+    on:click|self={closeCreateModal}
+    on:keydown|self={(e) => (e.key === 'Enter' || e.key === ' ') && closeCreateModal()}
+  >
+    <div class="modal">
       <h2>Create Post</h2>
       <form on:submit={submitCreatePost}>
         <input placeholder="Post text" bind:value={createText} required />
@@ -529,8 +678,15 @@ button.report:hover {
 {/if}
 
 {#if showLegalModal}
-  <div class="modal-overlay" on:click={() => showLegalModal = false}>
-    <div class="modal" on:click|stopPropagation>
+  <div
+    class="modal-overlay"
+    role="button"
+    tabindex="0"
+    aria-label="Close terms and privacy dialog"
+    on:click|self={() => showLegalModal = false}
+    on:keydown|self={(e) => (e.key === 'Enter' || e.key === ' ') && (showLegalModal = false)}
+  >
+    <div class="modal">
       <h2>Terms of Use & Privacy Policy</h2>
 
 <div class="legal-content">

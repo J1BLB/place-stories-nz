@@ -35,8 +35,11 @@ module.exports = async function (context, req) {
     //   return;
     // }
 
-    // Check for spam
+    // Check for spam (stored as moderation context)
     const detectedKeyword = detectSpam(body.text) || detectSpam(body.author);
+    const moderationReason = detectedKeyword
+      ? `Pending moderation (keyword detected: "${detectedKeyword}")`
+      : 'Pending moderation';
 
     const rowKey = Date.now().toString();
     const entity = {
@@ -52,15 +55,13 @@ module.exports = async function (context, req) {
 
     if (!client) {
       const row = memory.add(entity);
-      if (detectedKeyword) {
-        addFlaggedPost(row.id, `Spam keyword detected: "${detectedKeyword}"`);
-      }
+      addFlaggedPost(row.id, moderationReason);
       // recordPost(ip); // Disabled for local development
-      const responseBody = { id: row.id };
-      if (detectedKeyword) {
-        responseBody.flagged = true;
-        responseBody.reason = `Spam keyword detected: "${detectedKeyword}"`;
-      }
+      const responseBody = {
+        id: row.id,
+        flagged: true,
+        reason: moderationReason
+      };
       context.res = {
         status: 201,
         body: responseBody
@@ -72,13 +73,14 @@ module.exports = async function (context, req) {
     Object.keys(entity).forEach(k => entity[k] === undefined && delete entity[k]);
 
     await client.createEntity(entity);
+    addFlaggedPost(rowKey, moderationReason);
     // recordPost(ip); // Disabled for local development
 
-    const responseBody = { id: rowKey };
-    if (detectedKeyword) {
-      responseBody.flagged = true;
-      responseBody.reason = `Spam keyword detected: "${detectedKeyword}"`;
-    }
+    const responseBody = {
+      id: rowKey,
+      flagged: true,
+      reason: moderationReason
+    };
     context.res = {
       status: 201,
       body: responseBody

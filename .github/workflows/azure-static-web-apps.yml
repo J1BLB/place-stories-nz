@@ -42,15 +42,12 @@ jobs:
       - name: Merge custom functions into SSR server output
         run: |
           SERVER="app/build/server"
-          # Copy each custom function folder into the adapter's server output
-          for dir in functions/*/; do
-            [ -d "$dir" ] && cp -r "$dir" "$SERVER/"
-          done
-          # Copy shared support files used by custom functions
+          # Copy v4 function registrations (src/) and shared support files
+          cp -r functions/src "$SERVER/src"
           for f in utilities.js inMemoryStore.js adminAuth.js spamKeywords.json rateLimits.json flaggedPosts.json reports.json; do
             [ -f "functions/$f" ] && cp "functions/$f" "$SERVER/" || true
           done
-          # Merge @azure/data-tables and other deps from custom functions into server package.json
+          # Merge @azure/data-tables and @azure/functions deps into server package.json
           node -e "
             const fs = require('fs');
             const pkg = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
@@ -58,7 +55,16 @@ jobs:
             pkg.dependencies = { ...pkg.dependencies, ...(custom.dependencies || {}) };
             fs.writeFileSync(process.argv[1], JSON.stringify(pkg, null, 2));
           " "$SERVER/package.json" "functions/package.json"
-          # Install merged dependencies (generates updated package-lock.json for Oryx)
+          # Create combined entry point: loads sk_render (SvelteKit SSR) + custom functions
+          printf 'require("./sk_render/index.js");\nrequire("./src/index.js");\n' > "$SERVER/combined-entry.js"
+          # Point package.json main at the combined entry so both sk_render and custom functions register
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+            pkg.main = 'combined-entry.js';
+            fs.writeFileSync(process.argv[1], JSON.stringify(pkg, null, 2));
+          " "$SERVER/package.json"
+          # Install merged dependencies
           (cd "$SERVER" && npm install --production)
           # Copy staticwebapp.config.json into static output so Azure picks up routing rules
           cp app/build/staticwebapp.config.json app/build/static/
