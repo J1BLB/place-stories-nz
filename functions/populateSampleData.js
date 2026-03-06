@@ -1,5 +1,10 @@
 const { TableClient } = require("@azure/data-tables");
 
+if (process.env.NODE_ENV === 'production') {
+  console.error('Refusing to run in production. Unset NODE_ENV or set it to development.');
+  process.exit(1);
+}
+
 (async ()=> {
   const conn = process.env.TABLE_CONNECTION_STRING || process.env.AzureWebJobsStorage;
   const tableName = process.env.TABLE_NAME || "GeoPosts";

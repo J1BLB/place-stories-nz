@@ -1,5 +1,6 @@
 // Simple in-memory store for development fallback when Table Storage is unavailable
-const items = [
+const isProd = process.env.NODE_ENV === 'production';
+const items = isProd ? [] : [
   { id: '1', text: "Beautiful Milford Sound view", author: 'Sarah', latitude: -44.6719, longitude: 168.7626, partition: 'posts' },
   { id: '2', text: "Enjoying Auckland's waterfront", author: 'Mike', latitude: -37.0082, longitude: 174.7850, partition: 'posts' },
   { id: '3', text: "Hiking in Tongariro National Park", author: 'Emma', latitude: -38.7870, longitude: 175.5470, partition: 'posts' },
