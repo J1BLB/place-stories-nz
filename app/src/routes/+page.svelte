@@ -376,6 +376,11 @@
 
       // Touch long-press to create post
       canvas.addEventListener('touchstart', (e) => {
+        // Ignore multi-touch (pinch zoom etc.)
+        if (e.touches.length !== 1) {
+          clearTimeout(touchLongPressTimer);
+          return;
+        }
         const touch = e.touches[0];
         touchStartX = touch.clientX;
         touchStartY = touch.clientY;
@@ -396,6 +401,11 @@
       });
 
       canvas.addEventListener('touchmove', (e) => {
+        // Cancel on pinch gesture
+        if (e.touches.length > 1) {
+          clearTimeout(touchLongPressTimer);
+          return;
+        }
         const touch = e.touches[0];
         const deltaX = Math.abs(touch.clientX - touchStartX);
         const deltaY = Math.abs(touch.clientY - touchStartY);
